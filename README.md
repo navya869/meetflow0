@@ -1,6 +1,6 @@
 # Meetflow
 
-Meetflow is a MERN meeting app with passwordless account registration and sign-in. People verify their email address with an SMTP email code. After verifying, they can create meetings, share an invite, and use the existing browser-based video meeting tools.
+Meetflow is a MERN meeting app with password and Google sign-in, email verification, password reset, and a passwordless email-code option for existing accounts. After signing in, people can create meetings, share an invite, and use the existing browser-based video meeting tools.
 
 ## Requirements
 
@@ -20,19 +20,23 @@ Meetflow is a MERN meeting app with passwordless account registration and sign-i
    ```
 
 5. Add your SMTP host, port, username, password, and verified sender address to the `SMTP_*` variables.
-6. Double-click `start.bat`, or run `npm install` and `npm run dev`.
-7. Open the local frontend URL printed by Vite (usually http://127.0.0.1:5173 unless that port is already in use).
+6. To enable Google sign-in, create an OAuth 2.0 Web application client in Google Cloud, set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, and add `http://127.0.0.1:5173/api/auth/google/callback` as an authorized redirect URI. For another frontend origin, set `GOOGLE_REDIRECT_URI` to that origin plus `/api/auth/google/callback`; it must match the Google Cloud configuration exactly.
+7. Double-click `start.bat`, or run `npm install` and `npm run dev`.
+8. Open the local frontend URL printed by Vite (usually http://127.0.0.1:5173 unless that port is already in use).
 
-The development server serves the React sign-in/register page on the Vite port and the Express API on the port defined by `PORT` (default 8000). If a port is already occupied, set `PORT` and `VITE_PORT` in `.env` before starting the app. For a production build, run `npm run build`, then `npm start`; Express serves the built React app and meeting UI on the configured port.
+The development server serves the React authentication pages on the Vite port and the Express API on the port defined by `PORT` (default 8000). If a port is already occupied, set `PORT` and `VITE_PORT` in `.env` before starting the app. For a production build, run `npm run build`, then `npm start`; Express serves the built React app and meeting UI on the configured port.
 
 For email, port 465 uses TLS and port 587 uses STARTTLS. OTP sending returns a configuration error when SMTP settings are missing; verification codes are never printed to logs or returned by the API.
 
 ## Authentication and account safety
 
-- Registration and sign-in use a one-time 6-digit code; there is no password to store or reset.
+- New password accounts are only created after a one-time email verification code is confirmed. Passwords are stored as salted scrypt hashes, never as plain text.
+- Existing passwordless accounts can continue signing in with a one-time 6-digit email code. They can set a password using the emailed reset flow.
+- Google sign-in uses Google's OpenID Connect ID token verification and requires `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
+- Password reset links are single-use, expire after 30 minutes, and are delivered through the configured SMTP provider.
 - Codes expire after 5 minutes, are stored as keyed hashes, and allow at most 5 verification attempts.
 - Requests have resend cooldowns, contact-level send limits, and IP-based rate limits.
-- Sessions use a signed, HTTP-only, same-site cookie that expires after 7 days.
+- Sessions use a signed, HTTP-only, same-site cookie that expires after 7 days, or 24 hours when “Remember me” is unchecked.
 - Email addresses are unique and must be verified before an account is created.
 
 ## Video meetings
@@ -59,8 +63,17 @@ The repository includes a Vercel configuration that builds the Vite client from 
 - `MONGODB_URI`
 - `JWT_SECRET` and `OTP_SECRET` (each at least 32 characters and different)
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, and `SMTP_FROM` for email verification
+- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and (if not using the default) `GOOGLE_REDIRECT_URI` for Google sign-in
 
 Vercel can host the frontend and HTTP API, but its serverless functions cannot keep the app's WebSocket signaling connections alive. Video-call signaling and other real-time meeting features therefore need a persistent Node.js host; for the complete app, deploy the frontend/API and WebSocket server on a platform that supports long-lived connections.
+
+## Deploying on Render
+
+The repository includes a Render Blueprint in `render.yaml`. In Render, create a new Blueprint from this repository and provide `MONGODB_URI` and the SMTP settings when prompted. Render generates separate `JWT_SECRET` and `OTP_SECRET` values. Allow connections from the Render service to your MongoDB Atlas cluster.
+
+After Render creates the service, copy its public HTTPS URL into the service's `CLIENT_ORIGIN` environment variable, then redeploy. This is required for password-reset links and Google sign-in redirects to open the deployed site instead of a localhost address. If Google sign-in is enabled, set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in Render and add `<CLIENT_ORIGIN>/api/auth/google/callback` to the Google OAuth client's authorized redirect URIs.
+
+The service builds the Vite client and serves it with the Express API and WebSocket signaling on the same persistent Node.js host. The `/api/health` endpoint is configured as its deployment health check.
 
 ## Troubleshooting
 

@@ -1,4 +1,7 @@
-import { createHmac, randomInt, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes, randomInt, scrypt as scryptCallback, timingSafeEqual } from "node:crypto";
+import { promisify } from "node:util";
+
+const scrypt = promisify(scryptCallback);
 
 export function normalizeEmail(value) {
   const email = String(value || "").trim().toLowerCase();
@@ -22,11 +25,36 @@ export function safeEqualHex(left, right) {
   return timingSafeEqual(Buffer.from(left, "hex"), Buffer.from(right, "hex"));
 }
 
-export function createSessionToken(userId, secret, now = Date.now()) {
+export async function hashPassword(password) {
+  const salt = randomBytes(16);
+  const key = await scrypt(String(password), salt, 64);
+  return `scrypt$${salt.toString("hex")}$${key.toString("hex")}`;
+}
+
+export async function verifyPassword(password, encoded) {
+  const [algorithm, saltHex, keyHex, extra] = String(encoded || "").split("$");
+  if (algorithm !== "scrypt" || !/^[\da-f]{32}$/i.test(saltHex || "") || !/^[\da-f]{128}$/i.test(keyHex || "") || extra) {
+    return false;
+  }
+  const expected = Buffer.from(keyHex, "hex");
+  const actual = await scrypt(String(password), Buffer.from(saltHex, "hex"), expected.length);
+  return timingSafeEqual(actual, expected);
+}
+
+export function createPasswordResetToken() {
+  const token = randomBytes(32).toString("base64url");
+  return { token, tokenHash: hashResetToken(token) };
+}
+
+export function hashResetToken(token) {
+  return createHash("sha256").update(String(token)).digest("hex");
+}
+
+export function createSessionToken(userId, secret, now = Date.now(), lifetimeMs = 7 * 24 * 60 * 60 * 1000) {
   const payload = Buffer.from(JSON.stringify({
     sub: String(userId),
     iat: Math.floor(now / 1000),
-    exp: Math.floor(now / 1000) + 60 * 60 * 24 * 7
+    exp: Math.floor((now + lifetimeMs) / 1000)
   })).toString("base64url");
   const input = `mfs1.${payload}`;
   const signature = createHmac("sha256", secret).update(input).digest("base64url");

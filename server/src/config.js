@@ -19,5 +19,8 @@ export const config = Object.freeze({
   jwtSecret: process.env.JWT_SECRET,
   otpSecret: process.env.OTP_SECRET,
   clientOrigin: process.env.CLIENT_ORIGIN || "http://127.0.0.1:5173",
+  googleClientId: process.env.GOOGLE_CLIENT_ID || "",
+  googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+  googleRedirectUri: process.env.GOOGLE_REDIRECT_URI || `${process.env.CLIENT_ORIGIN || "http://127.0.0.1:5173"}/api/auth/google/callback`,
   sessionCookie: "meetflow_session"
 });

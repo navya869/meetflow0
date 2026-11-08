@@ -13,6 +13,7 @@ const [{ createAuthRouter }, security] = await Promise.all([
 function makeModels() {
   const users = [];
   const challenges = new Map();
+  const resets = new Map();
   let nextId = 0;
   const UserModel = {
     async findOne(query) {
@@ -21,6 +22,12 @@ function makeModels() {
     async create(data) {
       const user = { _id: `user-${users.length + 1}`, ...data };
       users.push(user);
+      return user;
+    },
+    async findOneAndUpdate(query, update) {
+      const user = users.find(item => Object.entries(query).every(([key, value]) => item[key] === value));
+      if (!user) return null;
+      Object.assign(user, update.$set);
       return user;
     }
   };
@@ -63,10 +70,29 @@ function makeModels() {
       if (challenge?.codeHash === query.codeHash) challenges.delete(key);
     }
   };
-  return { UserModel, OtpModel, users, challenges };
+  const ResetModel = {
+    async findOneAndUpdate(query, update) {
+      const record = { identity: query.identity, ...update.$set };
+      resets.set(query.identity, record);
+      return record;
+    },
+    async findOneAndDelete(query) {
+      for (const [identity, reset] of resets) {
+        if (reset.tokenHash === query.tokenHash && reset.expiresAt > query.expiresAt.$gt) {
+          resets.delete(identity);
+          return reset;
+        }
+      }
+      return null;
+    },
+    async deleteOne(query) {
+      if (resets.get(query.identity)?.tokenHash === query.tokenHash) resets.delete(query.identity);
+    }
+  };
+  return { UserModel, OtpModel, ResetModel, users, challenges, resets };
 }
 
-async function openHarness(deliverOtp) {
+async function openHarness(deliverOtp, deliverPasswordReset) {
   const { createServer } = await import("node:http");
   const express = (await import("express")).default;
   const models = makeModels();
@@ -79,7 +105,7 @@ async function openHarness(deliverOtp) {
     }));
     next();
   });
-  app.use(createAuthRouter({ ...models, deliverOtp }));
+  app.use(createAuthRouter({ ...models, deliverOtp, deliverPasswordReset }));
   const server = createServer(app);
   await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
@@ -214,6 +240,65 @@ test("email OTPs can be used to register and sign in", async t => {
   });
   assert.equal(authenticated.status, 200);
   assert.equal((await authenticated.json()).user.displayName, "Jordan");
+});
+
+test("password accounts verify email, authenticate, and reset passwords", async t => {
+  let sent;
+  let resetEmail;
+  const harness = await openHarness(async details => { sent = details; }, async details => { resetEmail = details; });
+  t.after(() => closeHarness(harness));
+  const originalPassword = "flow1234";
+
+  const weakRegistration = await post(harness.baseUrl, "/request-otp", {
+    intent: "register", identifier: "Taylor@Example.com", displayName: "Taylor", password: "short7!"
+  });
+  assert.equal(weakRegistration.status, 400);
+  assert.match((await weakRegistration.json()).detail, /8 and 128/);
+
+  const registration = await post(harness.baseUrl, "/request-otp", {
+    intent: "register", identifier: "Taylor@Example.com", displayName: "Taylor", password: originalPassword
+  });
+  assert.equal(registration.status, 200);
+  const registered = await post(harness.baseUrl, "/verify-otp", {
+    intent: "register", identifier: "taylor@example.com", code: sent.code
+  });
+  assert.equal(registered.status, 200);
+  assert.notEqual(harness.users[0].passwordHash, originalPassword);
+  assert.match(harness.users[0].passwordHash, /^scrypt\$/);
+
+  const login = await post(harness.baseUrl, "/password/login", {
+    identifier: "taylor@example.com", password: originalPassword, remember: false
+  });
+  assert.equal(login.status, 200);
+  assert.match(login.headers.get("set-cookie"), /HttpOnly/i);
+  const incorrect = await post(harness.baseUrl, "/password/login", {
+    identifier: "taylor@example.com", password: "a different password"
+  });
+  assert.equal(incorrect.status, 401);
+
+  const resetRequested = await post(harness.baseUrl, "/password/reset-request", { identifier: "taylor@example.com" });
+  assert.equal(resetRequested.status, 200);
+  const token = new URL(resetEmail.resetUrl).searchParams.get("token");
+  assert.ok(token);
+  const weakReset = await post(harness.baseUrl, "/password/reset", { token, password: "short7!" });
+  assert.equal(weakReset.status, 400);
+  assert.match((await weakReset.json()).detail, /8 and 128/);
+  const changed = await post(harness.baseUrl, "/password/reset", { token, password: "fresh123" });
+  assert.equal(changed.status, 200);
+  assert.match(changed.headers.get("set-cookie"), /HttpOnly/i);
+  const replay = await post(harness.baseUrl, "/password/reset", { token, password: "third strong password" });
+  assert.equal(replay.status, 400);
+  const newLogin = await post(harness.baseUrl, "/password/login", {
+    identifier: "taylor@example.com", password: "fresh123"
+  });
+  assert.equal(newLogin.status, 200);
+});
+
+test("password hashing rejects weak passwords and verifies stored hashes", async () => {
+  const encoded = await security.hashPassword("a sufficiently long password");
+  assert.equal(await security.verifyPassword("a sufficiently long password", encoded), true);
+  assert.equal(await security.verifyPassword("incorrect password", encoded), false);
+  assert.equal(await security.verifyPassword("a password", encoded), false);
 });
 
 test("SMS verification requests are rejected", async t => {
