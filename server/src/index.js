@@ -133,7 +133,7 @@ webSocketServer.on("connection", (socket, { room, participantId }) => {
 
 async function start() {
   await connectToDatabase();
-  server.listen(config.port, () => {
+  server.listen(config.port, "0.0.0.0", () => {
     console.log(`Meetflow MERN server listening on http://127.0.0.1:${config.port}`);
   });
 }
