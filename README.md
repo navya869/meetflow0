@@ -58,12 +58,15 @@ The existing Python test suite for the original FastAPI backend remains availabl
 
 ## Deploying on Vercel
 
-The repository includes a Vercel configuration that builds the Vite client from `client/dist` and routes API, static meeting assets, and `/meetings` requests to the Node.js function. Configure these Vercel environment variables for the Production, Preview, and Development environments as needed:
+The repository includes a Vercel configuration that builds the Vite client from `client/dist`, routes API, static meeting assets, and `/meetings` requests to the Node.js function, and sends client-side routes such as `/forgot-password` to the React app. Configure these Vercel environment variables for the Production, Preview, and Development environments as needed:
 
 - `MONGODB_URI`
 - `JWT_SECRET` and `OTP_SECRET` (each at least 32 characters and different)
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, and `SMTP_FROM` for email verification
-- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and (if not using the default) `GOOGLE_REDIRECT_URI` for Google sign-in
+- `CLIENT_ORIGIN` set to the public HTTPS production URL, especially when using a custom domain. If unset, the app uses Vercel's production URL.
+- `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` for Google sign-in; register `<CLIENT_ORIGIN>/api/auth/google/callback` as an authorized redirect URI in Google Cloud and set the same value in `GOOGLE_REDIRECT_URI` if needed.
+
+SMTP must be configured for email registration, email-code sign-in, and password reset. Google sign-in is optional. After changing Vercel environment variables, redeploy so the function receives them. Users can then create accounts from the public registration page; meeting and account data still require authentication.
 
 Vercel can host the frontend and HTTP API, but its serverless functions cannot keep the app's WebSocket signaling connections alive. Video-call signaling and other real-time meeting features therefore need a persistent Node.js host; for the complete app, deploy the frontend/API and WebSocket server on a platform that supports long-lived connections.
 

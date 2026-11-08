@@ -18,6 +18,10 @@
     {
       "source": "/meetings",
       "destination": "/api"
+    },
+    {
+      "source": "/:path*",
+      "destination": "/index.html"
     }
   ]
 }
