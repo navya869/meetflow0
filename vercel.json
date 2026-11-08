@@ -1,10 +1,23 @@
-"rewrites": [
-  {
-    "source": "/api/:path*",
-    "destination": "/api"
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "client/dist",
+  "functions": {
+    "api/index.js": {
+      "includeFiles": ["app/static/**"]
+    }
   },
-  {
-    "source": "/(.*)",
-    "destination": "/index.html"
-  }
-]
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "/api"
+    },
+    {
+      "source": "/static/:path*",
+      "destination": "/api"
+    },
+    {
+      "source": "/meetings",
+      "destination": "/api"
+    }
+  ]
+}
