@@ -10,10 +10,18 @@ services:
         value: production
       - key: MONGODB_URI
         sync: false
+      - key: CLIENT_ORIGIN
+        sync: false
       - key: JWT_SECRET
         generateValue: true
       - key: OTP_SECRET
         generateValue: true
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        sync: false
       - key: SMTP_HOST
         sync: false
       - key: SMTP_PORT

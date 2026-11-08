@@ -72,9 +72,9 @@ Vercel can host the frontend and HTTP API, but its serverless functions cannot k
 
 ## Deploying on Render
 
-The repository includes a Render Blueprint in `render.yaml`. In Render, create a new Blueprint from this repository and provide `MONGODB_URI` and the SMTP settings when prompted. Render generates separate `JWT_SECRET` and `OTP_SECRET` values. Allow connections from the Render service to your MongoDB Atlas cluster.
+The repository includes a Render Blueprint in `render.yaml`. In Render, create a new Blueprint from this repository and provide `MONGODB_URI`, `CLIENT_ORIGIN`, and the SMTP settings when prompted. Render generates separate `JWT_SECRET` and `OTP_SECRET` values. Allow connections from the Render service to your MongoDB Atlas cluster.
 
-After Render creates the service, copy its public HTTPS URL into the service's `CLIENT_ORIGIN` environment variable, then redeploy. This is required for password-reset links and Google sign-in redirects to open the deployed site instead of a localhost address. If Google sign-in is enabled, set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in Render and add `<CLIENT_ORIGIN>/api/auth/google/callback` to the Google OAuth client's authorized redirect URIs.
+After Render creates the service, set `CLIENT_ORIGIN` to its public HTTPS URL and set `GOOGLE_REDIRECT_URI` to `<CLIENT_ORIGIN>/api/auth/google/callback`, then redeploy. Add that exact redirect URI to the Google OAuth client's authorized redirect URIs. Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in Render to enable Google sign-in. These values must come from your Google Cloud OAuth client; the app cannot complete Google sign-in without them.
 
 The service builds the Vite client and serves it with the Express API and WebSocket signaling on the same persistent Node.js host. The `/api/health` endpoint is configured as its deployment health check.
 

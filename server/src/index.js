@@ -4,6 +4,7 @@ import mongoose from "mongoose";
 import { app } from "./app.js";
 import { config } from "./config.js";
 import { connectToDatabase } from "./database.js";
+import { Meeting, User } from "./models.js";
 import { verifySessionToken } from "./security.js";
 
 const server = createServer(app);
