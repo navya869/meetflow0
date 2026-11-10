@@ -140,7 +140,10 @@ async function start() {
 }
 
 start().catch(error => {
-  console.error("Meetflow could not connect to MongoDB:", error);
+  console.error(
+    "Meetflow could not connect to MongoDB. Check that the Atlas cluster is running, the database user's credentials are valid, and Atlas Network Access allows this Render service's outbound IP addresses.",
+    error
+  );
   process.exitCode = 1;
 });
 

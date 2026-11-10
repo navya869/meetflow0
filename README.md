@@ -80,7 +80,7 @@ The service builds the Vite client and serves it with the Express API and WebSoc
 
 ## Troubleshooting
 
-- **MongoDB connection fails:** verify `MONGODB_URI`, network access, and Atlas database credentials.
+- **MongoDB connection fails on Render (`ReplicaSetNoPrimary`):** confirm the Atlas cluster is running and the URI uses a MongoDB **database user** (not your Atlas website login). In Atlas, allow the Render service's outbound IP addresses in **Network Access**; if the service has changing outbound IPs, use a fixed-egress option or allow `0.0.0.0/0` only with a strong, unique database password. Update `MONGODB_URI` in Render with the current Atlas driver URI and password (URL-encode special characters), then redeploy. Do not put the URI in source control or share it in logs.
 - **Email code is not sent:** verify the SMTP server, TLS port, credentials, and sender address.
 - **Camera/microphone unavailable:** use a supported browser, allow device permissions, and close other apps using the camera.
 - **Remote video cannot connect:** confirm both accounts are using the same invite, check the browser console, and configure TURN if needed.
